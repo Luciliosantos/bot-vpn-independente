@@ -1,1 +1,12 @@
+[GERAL]
+token = SEU_TOKEN_AQUI
+admin_id = 7761133138
 
+[PAINEL_VPN]
+ip = IP_DA_VPS_COM_PAINEL
+usuario_ssh = root
+senha_ssh = SUA_SENHA_SSH
+caminho = /root/Sistema/
+
+[MERCADO_PAGO]
+access_token = SEU_TOKEN_AQUI
