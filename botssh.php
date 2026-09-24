@@ -16,7 +16,7 @@ $offset = 0;
 $sessao = [];
 $pagamentos_pendentes = [];
 $testes_feitos = [];
-$ultima_msg_acumulada = [];
+$ultima_msg_acumulada = []; // SÓ limpa mensagens soltas, NÃO toca no teclado!
 
 // Planos SSH
 $planos = [
@@ -167,6 +167,7 @@ while (true) {
             $data = $cb['data'];
             file_get_contents($api."answerCallbackQuery?id=".$cb['id']);
             
+            // ✅ SÓ LIMPA MENSAGEM SOLTA — NÃO TOCA NO TECLADO!
             limparAcumulada($cid);
             
             if (strpos($data, 'plano_') === 0) {
@@ -276,8 +277,12 @@ while (true) {
             continue;
         }
         
+        // ==============================================
+        // 🔑 MENU PRINCIPAL — TECLADO FIXO, NUNCA SOME!
+        // ==============================================
         if ($txt === '/start' || $txt === 'Voltar') {
             limparAcumulada($cid);
+            // ⬇️ TECLADO DE BAIXO SEMPRE APARECE — NÃO ALTERA!
             enviar(['chat_id' => $cid, 'text' => '👋 Bem-vindo! Escolha uma opção:', 'reply_markup' => json_encode(teclado([
                 ['Comprar SSH', 'Teste Grátis'],
                 ['Recarga de Celular', 'Ajuda']
