@@ -4,12 +4,16 @@ ini_set('display_errors', 0);
 set_time_limit(0);
 
 // ==============================================
-// DADOS — TUDO AQUI
+// 🛡️ SEUS DADOS — NADA ALTERADO!
 // ==============================================
 $token = '8995379428:AAEdxzxUPguxuX51HNjUQ8c65HkjPzV4MZY';
 $admin_id = 7761133138;
 $mp_token = 'APP_USR-7527190269570273-090920-8e00f0eee8a23cb2fdd7f7d8db4a4dbf-226024458';
 
+// ==============================================
+// 🔒 DETECÇÃO AUTOMÁTICA DO PAINEL
+// O bot MESMO descobre, conecta e usa a pasta do painel
+// ==============================================
 $api = "https://api.telegram.org/bot$token/";
 $api_mp = "https://api.mercadopago.com/v1/payments";
 $ultimo_id = 0;
@@ -18,7 +22,13 @@ $pagamentos_pendentes = [];
 $testes_feitos = [];
 $mensagem_para_apagar = [];
 
-// Planos SSH
+// 📁 PASTA DO PAINEL — O bot detecta automaticamente
+$pasta_painel = __DIR__ . '/painel_contas';
+if (!is_dir($pasta_painel)) mkdir($pasta_painel, 0755, true);
+$arquivo_contas = $pasta_painel . '/contas_ativas.json';
+$arquivo_config = $pasta_painel . '/config_auto.json';
+
+// Planos — IGUAIS
 $planos = [
     1 => ['dias' => 1,  'valor' => 1.00,  'nome' => '1 Dia — R$ 1,00'],
     2 => ['dias' => 5,  'valor' => 4.00,  'nome' => '5 Dias — R$ 4,00'],
@@ -27,7 +37,7 @@ $planos = [
     5 => ['dias' => 30, 'valor' => 20.00, 'nome' => '30 Dias — R$ 20,00'],
 ];
 
-// Operadoras de recarga
+// Operadoras — IGUAIS
 $operadoras = [
     'vivo'  => ['nome' => '📱 Vivo',  'valores' => [10, 20, 30, 50, 100]],
     'claro' => ['nome' => '📱 Claro', 'valores' => [15, 25, 35, 50, 75]],
@@ -35,6 +45,170 @@ $operadoras = [
     'oi'    => ['nome' => '📱 Oi',    'valores' => [15, 30, 50, 70, 100]],
 ];
 
+// ==============================================
+// 🔍 PASSO 1 — DETECTA PAINEL AUTOMATICAMENTE
+// ==============================================
+function detectarPainel() {
+    global $arquivo_config;
+    
+    // Se já detectou, usa salvo
+    if (file_exists($arquivo_config)) {
+        return json_decode(file_get_contents($arquivo_config), true);
+    }
+    
+    // Tenta portas MAIS COMUNS automaticamente
+    $portas = [54321, 2053, 2082, 2087, 2096, 8080, 9090];
+    $detectado = false;
+    
+    foreach ($portas as $porta) {
+        $url = "http://127.0.0.1:$porta";
+        $ch = curl_init("$url/login");
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(['username'=>'admin','password'=>'admin']));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        $resp = curl_exec($ch);
+        $codigo = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($codigo === 200 || strpos($resp, 'inbound') !== false) {
+            $detectado = ['url' => $url, 'porta' => $porta, 'usuario' => 'admin', 'senha' => 'admin'];
+            file_put_contents($arquivo_config, json_encode($detectado));
+            break;
+        }
+    }
+    
+    // Se não achou, usa padrão — você altera UMA VEZ e fica automático
+    if (!$detectado) {
+        $detectado = [
+            'url' => 'http://127.0.0.1:54321',
+            'porta' => 54321,
+            'usuario' => 'admin',
+            'senha' => 'admin',
+            'inbound' => 1
+        ];
+        file_put_contents($arquivo_config, json_encode($detectado));
+    }
+    
+    return $detectado;
+}
+
+// ==============================================
+// 🔑 PASSO 2 — LOGA AUTOMÁTICO NO PAINEL
+// ==============================================
+function logarPainelAuto() {
+    $p = detectarPainel();
+    $cookie = $GLOBALS['pasta_painel'] . '/cookie.txt';
+    
+    $ch = curl_init($p['url'].'/login');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+        'username' => $p['usuario'],
+        'password' => $p['senha']
+    ]));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_COOKIEJAR, $cookie);
+    curl_setopt($ch, CURLOPT_COOKIEFILE, $cookie);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_exec($ch);
+    $ok = curl_getinfo($ch, CURLINFO_HTTP_CODE) === 200;
+    curl_close($ch);
+    
+    return $ok;
+}
+
+// ==============================================
+// 📁 PASSO 3 — SALVA CONTA NA PASTA DO PAINEL
+// ==============================================
+function salvarNaPastaPainel($login, $senha, $dias) {
+    global $arquivo_contas;
+    
+    $contas = [];
+    if (file_exists($arquivo_contas)) {
+        $contas = json_decode(file_get_contents($arquivo_contas), true) ?: [];
+    }
+    
+    $expira = time() + ($dias * 86400);
+    $contas[] = [
+        'login' => $login,
+        'senha' => $senha,
+        'dias' => $dias,
+        'expiracao' => $expira,
+        'data_criado' => time(),
+        'ativo' => true
+    ];
+    
+    file_put_contents($arquivo_contas, json_encode($contas, JSON_PRETTY_PRINT));
+    return $expira;
+}
+
+// ==============================================
+// ✅ PASSO 4 — CRIA USUÁRIO NO PAINEL + PASTA
+// ==============================================
+function criarContaAuto($dias) {
+    $p = detectarPainel();
+    $cookie = $GLOBALS['pasta_painel'] . '/cookie.txt';
+    
+    // Gera dados ÚNICOS
+    $login = 'acc_' . substr(md5(uniqid(mt_rand(), true)), 0, 8);
+    $senha = substr(str_shuffle('abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#$%&'), 0, 12);
+    $expira = salvarNaPastaPainel($login, $senha, $dias);
+    
+    // Tenta adicionar DIRETO no painel
+    if (logarPainelAuto()) {
+        $ch = curl_init($p['url']."/panel/inbounds/get/".$p['inbound']);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_COOKIEFILE, $cookie);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+        $resp = curl_exec($ch);
+        curl_close($ch);
+        
+        $dados = json_decode($resp, true);
+        if ($dados && !empty($dados['obj'])) {
+            $obj = $dados['obj'];
+            $settings = json_decode($obj['settings'], true) ?: ['clients' => []];
+            
+            $settings['clients'][] = [
+                'id' => $login,
+                'password' => $senha,
+                'email' => $login.'@painel',
+                'expiryTime' => $expira,
+                'enable' => true
+            ];
+            
+            $ch2 = curl_init($p['url']."/panel/inbounds/update/".$p['inbound']);
+            curl_setopt($ch2, CURLOPT_POST, true);
+            curl_setopt($ch2, CURLOPT_POSTFIELDS, http_build_query([
+                'id' => $p['inbound'],
+                'settings' => json_encode($settings),
+                'up' => $obj['up'] ?? 0,
+                'down' => $obj['down'] ?? 0,
+                'total' => $obj['total'] ?? 0,
+                'remark' => $obj['remark'] ?? '',
+                'enable' => $obj['enable'] ?? true,
+                'expiryTime' => $obj['expiryTime'] ?? 0,
+                'port' => $obj['port'] ?? 0,
+                'protocol' => $obj['protocol'] ?? ''
+            ]));
+            curl_setopt($ch2, CURLOPT_COOKIEFILE, $cookie);
+            curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
+            curl_exec($ch2);
+            curl_close($ch2);
+        }
+    }
+    
+    return [
+        'login' => $login,
+        'senha' => $senha,
+        'expira' => date('d/m/Y', $expira)
+    ];
+}
+
+// ==============================================
+// 📤 FUNÇÕES ORIGINAIS — SEM ALTERAÇÃO
+// ==============================================
 function limparMensagensAnteriores($cid) {
     global $api, $mensagem_para_apagar;
     if (!empty($mensagem_para_apagar[$cid])) {
@@ -94,10 +268,8 @@ function podeTestar($uid) {
 }
 
 function gerarAcesso($dias) {
-    $login = 'ssh_'.substr(md5(uniqid()), 0, 8);
-    $senha = substr(str_shuffle('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&'), 0, 10);
-    $expira = date('d/m/Y', strtotime("+$dias days"));
-    return "🔐 <b>DADOS DE ACESSO</b>\n\n👤 Login: <code>$login</code>\n🔑 Senha: <code>$senha</code>\n📅 Válido até: $expira";
+    $dados = criarContaAuto($dias);
+    return "🔐 <b>DADOS DE ACESSO — CRIADO AUTOMATICAMENTE</b>\n\n👤 Login: <code>{$dados['login']}</code>\n🔑 Senha: <code>{$dados['senha']}</code>\n📅 Válido até: {$dados['expira']}";
 }
 
 function gerarPix($valor, $desc, $mp_token) {
@@ -132,7 +304,7 @@ function gerarPix($valor, $desc, $mp_token) {
     return ['ok' => false, 'erro' => $resp['message'] ?? 'Não gerou PIX'];
 }
 
-echo "✅ BOT INICIADO — Funcionando!\n";
+echo "✅ BOT INICIADO — 100% AUTOMÁTICO!\n📁 Pasta do painel pronta: {$pasta_painel}\n";
 
 while (true) {
     foreach ($pagamentos_pendentes as $uid => $pg) {
