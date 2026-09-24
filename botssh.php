@@ -6,7 +6,7 @@ set_time_limit(0);
 // ==============================================
 // SEUS DADOS — CONFERE TUDO AQUI!
 // ==============================================
-$token = '8999330752:AAF-JcIr6AwhK7uPkrOCtFUPUaN294SKDBk';
+$token = '8591852336:AAHHK2tuPC0tjJK9G8gcjBk8x2FxylSVQu8';
 $admin_id = 7761133138;
 $mp_token = 'APP_USR-7527190269570273-090920-8e00f0eee8a23cb2fdd7f7d8db4a4dbf-226024458';
 
