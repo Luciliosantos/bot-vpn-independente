@@ -203,7 +203,7 @@ function gerarAcesso($dias) {
 }
 
 // ==============================================
-// ✅ PIX CORRIGIDO — Bearer Token no cabeçalho
+// ✅ PIX CORRIGIDO + DEPURAÇÃO COMPLETA
 // ==============================================
 function gerarPix($valor, $desc, $mp_token) {
     global $api_mp;
@@ -220,13 +220,33 @@ function gerarPix($valor, $desc, $mp_token) {
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($dados));
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Content-Type: application/json',
-        'Authorization: Bearer ' . $mp_token
+        'Authorization: Bearer ' . trim($mp_token)
     ]);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
     
-    $resp = json_decode(curl_exec($ch), true);
+    $resposta_bruta = curl_exec($ch);
+    $codigo_http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    
+    $resp = json_decode($resposta_bruta, true);
+    
+    // ✅ Mostra o erro exato
+    if (!$resp) {
+        return ['ok' => false, 'erro' => "Resposta inválida (HTTP $codigo_http): " . substr($resposta_bruta, 0, 250)];
+    }
+    
+    if (isset($resp['message']) || isset($resp['error'])) {
+        $msg_erro = $resp['message'] ?? $resp['error'];
+        if (!empty($resp['cause'])) {
+            $causas = [];
+            foreach ($resp['cause'] as $c) {
+                $causas[] = ($c['code'] ?? 'erro') . ': ' . ($c['description'] ?? '');
+            }
+            $msg_erro .= ' | Detalhes: ' . implode('; ', $causas);
+        }
+        return ['ok' => false, 'erro' => $msg_erro . " (HTTP $codigo_http)"];
+    }
     
     $pix_copia = '';
     if (!empty($resp['point_of_interaction']['transaction_data']['qr_code'])) {
@@ -240,10 +260,11 @@ function gerarPix($valor, $desc, $mp_token) {
     if ($pix_copia && !empty($resp['id'])) {
         return ['ok' => true, 'pix' => $pix_copia, 'id' => $resp['id']];
     }
-    return ['ok' => false, 'erro' => $resp['message'] ?? 'Não gerou PIX'];
+    
+    return ['ok' => false, 'erro' => 'PIX não gerado — resposta: ' . substr($resposta_bruta, 0, 300)];
 }
 
-echo "✅ BOT INICIADO — PIX corrigido + Sem duplicação!\n📁 Pasta: $pasta_painel\n";
+echo "✅ BOT INICIADO — PIX corrigido!\n📁 Pasta: $pasta_painel\n";
 
 // ==============================================
 // 🔑 LOOP PRINCIPAL — CORRIGIDO
@@ -256,7 +277,7 @@ while (true) {
         $ch = curl_init("$api_mp/{$pg['mp_id']}");
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json',
-            'Authorization: Bearer ' . $mp_token
+            'Authorization: Bearer ' . trim($mp_token)
         ]);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 8);
@@ -305,7 +326,7 @@ while (true) {
                     $pagamentos_pendentes[$uid] = ['mp_id'=>$pix['id'],'tipo'=>'ssh','dias'=>$pl['dias'],'valor'=>$pl['valor'],'tempo'=>time()];
                     enviar(['chat_id'=>$cid,'text'=>"💳 <b>PAGAMENTO VIA PIX</b>\n\n⏳ {$pl['nome']}\n💰 Valor: R$ ".number_format($pl['valor'],2,',','')."\n\n📋 Copie e cole:\n<pre>{$pix['pix']}</pre>\n✅ Após pagar, receba os dados automático!",'parse_mode'=>'html'], true);
                 } else {
-                    enviar(['chat_id'=>$cid,'text'=>'❌ Erro ao gerar PIX: '.($pix['erro']??'Tente novamente')], true);
+                    enviar(['chat_id'=>$cid,'text'=>'❌ Erro ao gerar PIX: '.$pix['erro'],'parse_mode'=>'html'], true);
                 }
                 continue;
             }
@@ -353,7 +374,7 @@ while (true) {
             $nome_op = $operadoras[$op_chave]['nome'];
             $pix = gerarPix($valor, "Recarga $nome_op — $num", $mp_token);
             if (!$pix['ok']) {
-                enviar(['chat_id'=>$cid,'text'=>'❌ Erro ao gerar PIX. Tente novamente.'], true);
+                enviar(['chat_id'=>$cid,'text'=>'❌ Erro ao gerar PIX: '.$pix['erro'],'parse_mode'=>'html'], true);
                 unset($sessao[$cid]);
                 continue;
             }
