@@ -203,7 +203,7 @@ function gerarAcesso($dias) {
 }
 
 // ==============================================
-// ✅ PIX CORRIGIDO + DEPURAÇÃO COMPLETA
+// ✅ PIX CORRIGIDO — trim() + Bearer + detalhes
 // ==============================================
 function gerarPix($valor, $desc, $mp_token) {
     global $api_mp;
@@ -231,7 +231,6 @@ function gerarPix($valor, $desc, $mp_token) {
     
     $resp = json_decode($resposta_bruta, true);
     
-    // ✅ Mostra o erro exato
     if (!$resp) {
         return ['ok' => false, 'erro' => "Resposta inválida (HTTP $codigo_http): " . substr($resposta_bruta, 0, 250)];
     }
@@ -270,7 +269,7 @@ echo "✅ BOT INICIADO — PIX corrigido!\n📁 Pasta: $pasta_painel\n";
 // 🔑 LOOP PRINCIPAL — CORRIGIDO
 // ==============================================
 while (true) {
-    // Verificar pagamentos — ✅ também corrigido
+    // Verificar pagamentos — ✅ também com trim()
     foreach ($pagamentos_pendentes as $uid => $pg) {
         if (time() - $pg['tempo'] > 900) { unset($pagamentos_pendentes[$uid]); continue; }
         
@@ -304,9 +303,7 @@ while (true) {
     if (!isset($dados['result']) || empty($dados['result'])) { sleep(1); continue; }
     
     foreach ($dados['result'] as $at) {
-        // ✅ IGNORA o que já foi processado
         if ($at['update_id'] <= $ultimo_id) continue;
-        // ✅ AVANÇA o ID IMEDIATAMENTE
         $ultimo_id = $at['update_id'];
 
         if (isset($at['callback_query'])) {
