@@ -16,7 +16,8 @@ $offset = 0;
 $sessao = [];
 $pagamentos_pendentes = [];
 $testes_feitos = [];
-$ultima_msg_acumulada = []; // SÓ limpa mensagens soltas, NÃO toca no teclado!
+$ultima_msg_acumulada = [];
+$teclado_ja_enviado = []; // NÃO reenvia o teclado = NÃO SOME!
 
 // Planos SSH
 $planos = [
@@ -44,7 +45,7 @@ function limparAcumulada($cid) {
             'chat_id' => $cid,
             'message_id' => $ultima_msg_acumulada[$cid]
         ]));
-        curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
         curl_exec($ch);
         curl_close($ch);
     }
@@ -109,7 +110,7 @@ function gerarPix($valor, $desc, $mp_token) {
     return ['ok' => false];
 }
 
-echo "✅ BOT INICIADO!\n";
+echo "✅ BOT INICIADO — TECLADO FIXO!\n";
 
 while (true) {
     foreach ($pagamentos_pendentes as $uid => $pg) {
@@ -167,7 +168,6 @@ while (true) {
             $data = $cb['data'];
             file_get_contents($api."answerCallbackQuery?id=".$cb['id']);
             
-            // ✅ SÓ LIMPA MENSAGEM SOLTA — NÃO TOCA NO TECLADO!
             limparAcumulada($cid);
             
             if (strpos($data, 'plano_') === 0) {
@@ -278,15 +278,21 @@ while (true) {
         }
         
         // ==============================================
-        // 🔑 MENU PRINCIPAL — TECLADO FIXO, NUNCA SOME!
+        // 🔑 TECLADO FIXO — SÓ ENVIA 1 VEZ POR USUÁRIO!
         // ==============================================
         if ($txt === '/start' || $txt === 'Voltar') {
             limparAcumulada($cid);
-            // ⬇️ TECLADO DE BAIXO SEMPRE APARECE — NÃO ALTERA!
-            enviar(['chat_id' => $cid, 'text' => '👋 Bem-vindo! Escolha uma opção:', 'reply_markup' => json_encode(teclado([
-                ['Comprar SSH', 'Teste Grátis'],
-                ['Recarga de Celular', 'Ajuda']
-            ]))], true);
+            if (!isset($teclado_ja_enviado[$cid])) {
+                // SÓ ENVIA O TECLADO NA PRIMEIRA VEZ = NÃO SOME!
+                enviar(['chat_id' => $cid, 'text' => '👋 Bem-vindo! Escolha uma opção:', 'reply_markup' => json_encode(teclado([
+                    ['Comprar SSH', 'Teste Grátis'],
+                    ['Recarga de Celular', 'Ajuda']
+                ]))], true);
+                $teclado_ja_enviado[$cid] = true;
+            } else {
+                // NAS OUTRAS VEZES SÓ MANDA A MENSAGEM SEM TECLADO = NÃO TROCA!
+                enviar(['chat_id' => $cid, 'text' => '👋 Bem-vindo! Escolha uma opção:'], true);
+            }
         }
         elseif ($txt === 'Comprar SSH') {
             limparAcumulada($cid);
