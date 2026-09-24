@@ -1,11 +1,8 @@
 <?php
-error_reporting(0);
-ini_set('display_errors', 0);
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 set_time_limit(0);
 
-// ==============================================
-// ✅ TUDO FIXO — NÃO MEXER!
-// ==============================================
 $token = '8995379428:AAEdxzxUPguxuX51HNjUQ8c65HkjPzV4MZY';
 $admin_id = 7761133138;
 $mp_token = 'APP_USR-7527190269570273-090920-8e00f0eee8a23cb2fdd7f7d8db4a4dbf-226024458';
@@ -36,22 +33,15 @@ function comeca_com($texto, $inicio) {
     return substr($texto, 0, strlen($inicio)) === $inicio;
 }
 
-function requisita($url, $dados=null) {
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-    if ($dados) {
-        curl_setopt($ch, CURLOPT_POST, 1);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $dados);
-    }
-    $r = curl_exec($ch);
-    curl_close($ch);
-    return $r;
-}
-
 function enviar($dados) {
     global $api;
-    requisita($api."sendMessage", http_build_query($dados));
+    $ch = curl_init($api."sendMessage");
+    curl_setopt($ch, CURLOPT_POST, 1);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($dados));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_exec($ch);
+    curl_close($ch);
 }
 
 function criarUsuario($login, $senha, $dias) {
@@ -86,12 +76,27 @@ function gerarPix($valor, $desc) {
     curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 20);
-    $r = json_decode(curl_exec($ch), true);
+    $resposta = curl_exec($ch);
     curl_close($ch);
-    if (isset($r['point_of_interaction']['transaction_data']['qr_code']) && $r['id']) {
-        return ['ok'=>true, 'pix'=>$r['point_of_interaction']['transaction_data']['qr_code'], 'id'=>$r['id']];
+    
+    $r = json_decode($resposta, true);
+    
+    // ✅ ACHA O PIX DE TODAS AS FORMAS POSSÍVEIS
+    $pix_copia = '';
+    if (!empty($r['point_of_interaction']['transaction_data']['qr_code'])) {
+        $pix_copia = $r['point_of_interaction']['transaction_data']['qr_code'];
+    } elseif (!empty($r['qr_code'])) {
+        $pix_copia = $r['qr_code'];
+    } elseif (!empty($r['qr_code_base64'])) {
+        $pix_copia = $r['qr_code_base64'];
+    } elseif (!empty($r['ticket_url'])) {
+        $pix_copia = $r['ticket_url'];
     }
-    return ['ok'=>false, 'erro'=>$r['message']??'Erro ao gerar PIX'];
+    
+    if ($pix_copia && isset($r['id'])) {
+        return ['ok'=>true, 'pix'=>$pix_copia, 'id'=>$r['id']];
+    }
+    return ['ok'=>false, 'erro'=>$r['message']??'Não conseguiu extrair o PIX'];
 }
 
 echo "✅ BOT LIGADO!\n";
@@ -99,24 +104,28 @@ echo "✅ BOT LIGADO!\n";
 while (true) {
     foreach ($pagamentos_pendentes as $uid=>$pg) {
         if (time()-$pg['tempo']>900) { unset($pagamentos_pendentes[$uid]); continue; }
-        $r = requisita("$api_mp/{$pg['mp_id']}?access_token=$mp_token");
-        $r = json_decode($r, true);
+        $ch = curl_init("$api_mp/{$pg['mp_id']}?access_token=$mp_token");
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+        $r = json_decode(curl_exec($ch), true);
+        curl_close($ch);
+        
         if (($r['status']??'')==='approved') {
             if ($pg['tipo']==='ssh') {
                 list($login,$senha)=gerarCredenciais();
                 $conta=criarUsuario($login,$senha,$pg['dias']);
                 enviar(['chat_id'=>$uid, 'text'=>"✅ <b>PAGAMENTO CONFIRMADO!</b>\n\n👤 Login: <code>$login</code>\n🔑 Senha: <code>$senha</code>\n📅 Válido até: {$conta['expira']}", 'parse_mode'=>'html']);
-                enviar(['chat_id'=>$admin_id, 'text'=>"💰 VENDA CONFIRMADA\nUsuário: $uid\nPlano: {$pg['dias']} dias\nValor: R$".number_format($pg['valor'],2,',','')]);
+                enviar(['chat_id'=>$admin_id, 'text'=>"💰 VENDA\nUsuário: $uid\nPlano: {$pg['dias']} dias\nValor: R$".number_format($pg['valor'],2,',','')]);
             } else {
                 enviar(['chat_id'=>$uid, 'text'=>"✅ <b>PAGAMENTO CONFIRMADO!</b>\n📱 Recarga em processamento — pode demorar até 8h!", 'parse_mode'=>'html']);
-                enviar(['chat_id'=>$admin_id, 'text'=>"💰 RECARGA CONFIRMADA\nUsuário: $uid\n📱 {$pg['numero']} — {$pg['nome_op']}\nValor: R$".number_format($pg['valor'],2,',','')]);
+                enviar(['chat_id'=>$admin_id, 'text'=>"💰 RECARGA\nUsuário: $uid\n📱 {$pg['numero']} — {$pg['nome_op']}\nValor: R$".number_format($pg['valor'],2,',','')]);
             }
             unset($pagamentos_pendentes[$uid]);
         }
     }
 
     $r = @file_get_contents($api."getUpdates?offset=$offset&timeout=10");
-    if (!$r) { sleep(1); continue; }
+    if (!$r) { usleep(500000); continue; }
     $d = json_decode($r, true);
     if (!isset($d['result'])) continue;
 
@@ -137,9 +146,9 @@ while (true) {
                 $pix = gerarPix($pl['valor'], "SSH {$pl['dias']} dias");
                 if ($pix['ok']) {
                     $pagamentos_pendentes[$uid] = ['mp_id'=>$pix['id'], 'tipo'=>'ssh', 'dias'=>$pl['dias'], 'valor'=>$pl['valor'], 'tempo'=>time()];
-                    enviar(['chat_id'=>$cid, 'text'=>"💳 <b>PAGAMENTO VIA PIX</b>\n\n{$pl['nome']}\nValor: R$ ".number_format($pl['valor'],2,',','')."\n\nCopie e cole:\n<pre>{$pix['pix']}</pre>", 'parse_mode'=>'html']);
+                    enviar(['chat_id'=>$cid, 'text'=>"💳 <b>PAGAMENTO VIA PIX</b>\n\n{$pl['nome']}\nValor: R$ ".number_format($pl['valor'],2,',','')."\n\n📋 COPIA E COLA:\n<pre>{$pix['pix']}</pre>", 'parse_mode'=>'html']);
                 } else {
-                    enviar(['chat_id'=>$cid, 'text'=>"❌ Erro ao gerar PIX: ".$pix['erro']]);
+                    enviar(['chat_id'=>$cid, 'text'=>"❌ Erro: ".$pix['erro']]);
                 }
             }
             elseif (comeca_com($data, 'op_')) {
@@ -176,12 +185,12 @@ while (true) {
             $valor = $sessao[$cid]['valor'];
             $pix = gerarPix($valor, "Recarga $num — {$operadoras[$op]['nome']}");
             if (!$pix['ok']) {
-                enviar(['chat_id'=>$cid, 'text'=>"❌ Erro ao gerar PIX: ".$pix['erro']]);
+                enviar(['chat_id'=>$cid, 'text'=>"❌ Erro: ".$pix['erro']]);
                 unset($sessao[$cid]);
                 continue;
             }
             $pagamentos_pendentes[$uid] = ['mp_id'=>$pix['id'], 'tipo'=>'recarga', 'numero'=>$num, 'op'=>$op, 'nome_op'=>$operadoras[$op]['nome'], 'valor'=>$valor, 'tempo'=>time()];
-            enviar(['chat_id'=>$cid, 'text'=>"💳 <b>PIX — RECARGA</b>\n\n📱 $num\n📶 {$operadoras[$op]['nome']}\n💰 R$ ".number_format($valor,2,',','')."\n\nCopie e cole:\n<pre>{$pix['pix']}</pre>", 'parse_mode'=>'html']);
+            enviar(['chat_id'=>$cid, 'text'=>"💳 <b>PIX — RECARGA</b>\n\n📱 $num\n📶 {$operadoras[$op]['nome']}\n💰 R$ ".number_format($valor,2,',','')."\n\n📋 COPIA E COLA:\n<pre>{$pix['pix']}</pre>", 'parse_mode'=>'html']);
             unset($sessao[$cid]);
             continue;
         }
@@ -200,7 +209,7 @@ while (true) {
                 list($login,$senha)=gerarCredenciais();
                 $conta=criarUsuario($login,$senha,1);
                 $testes_feitos[$uid] = $hoje;
-                enviar(['chat_id'=>$cid, 'text'=>"✅ <b>TESTE LIBERADO!</b>\n\n👤 Login: <code>$login</code>\n🔑 Senha: <code>$senha</code>\n📅 Válido até: {$conta['expira']}", 'parse_mode'=>'html']);
+                enviar(['chat_id'=>$cid, 'text'=>"✅ <b>TESTE LIBERADO!</b>\n\n👤 Login: <code>$login</code>\n🔑 Senha: <code>$senha</code>", 'parse_mode'=>'html']);
             } else {
                 enviar(['chat_id'=>$cid, 'text'=>'⏰ Já usou o teste hoje! Volta amanhã.']);
             }
