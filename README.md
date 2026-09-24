@@ -23,7 +23,4 @@ screen -r bot
 
 # comando de atualização
 
-pkill -9 -f botssh 2>/dev/null
-cd /root/bot
-wget -qO botssh.php https://raw.githubusercontent.com/Luciliosantos/bot-vpn-independente/main/botssh.php
-php -l botssh.php && echo "✅ ATUALIZADO!" && screen -dmS bot bash -c 'while true; do php botssh.php; sleep 5; done'
+pkill -9 -f botssh 2>/dev/null && cd /root/bot && wget -qO botssh.php https://raw.githubusercontent.com/Luciliosantos/bot-vpn-independente/main/botssh.php && sed -i "s|\$token = '.*';|\$token = '8995379428:AAEdxzxUPguxuX51HNjUQ8c65HkjPzV4MZY';|" botssh.php && php -l botssh.php && screen -wipe 2>/dev/null && screen -dmS bot bash -c 'while true; do php /root/bot/botssh.php; sleep 3; done' && echo "✅ ATUALIZADO!"
