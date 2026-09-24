@@ -4,9 +4,9 @@ ini_set('display_errors', 0);
 set_time_limit(0);
 
 // ==============================================
-// TUDO PRONTO — NÃO ALTERE NADA ABAIXO!
+// ✅ TUDO PRONTO — NÃO ALTERE NADA!
 // ==============================================
-$token = '8999330752:AAF-JcIr6AwhK7uPkrOCtFUPUaN294SKDBk';
+$token = '8995379428:AAEdxzxUPguxuX51HNjUQ8c65HkjPzV4MZY';
 $admin_id = 7761133138;
 $mp_token = 'APP_USR-7527190269570273-090920-8e00f0eee8a23cb2fdd7f7d8db4a4dbf-226024458';
 
@@ -34,17 +34,13 @@ $operadoras = [
 ];
 
 // ==============================================
-// CRIA USUÁRIO AUTOMÁTICO — NÃO MEXER!
+// ✅ CRIA USUÁRIO SSHPlus — JÁ PRONTO!
 // ==============================================
 function criarUsuario($login, $senha, $dias) {
     $expira = date('d/m/Y', strtotime("+$dias days"));
-    
-    // Comando fixo para SSHPlus — funciona direto!
     $cmd = "cd /root && bash <(wget -qO- https://raw.githubusercontent.com/ProverbioX/sshplus/main/criar.sh) {$login} {$senha} {$dias} 2>&1";
-    
     $saida = shell_exec($cmd);
     $ok = (stripos((string)$saida, 'erro') === false);
-    
     return [
         'ok' => $ok,
         'login' => $login,
@@ -109,16 +105,16 @@ function gerarPix($valor, $desc, $mp_token) {
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($dados));
     curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
     $resp = json_decode(curl_exec($ch), true);
     curl_close($ch);
     if (isset($resp['point_of_interaction']['transaction_data']['qr_code']) && isset($resp['id'])) {
         return ['ok' => true, 'pix' => $resp['point_of_interaction']['transaction_data']['qr_code'], 'id' => $resp['id']];
     }
-    return ['ok' => false];
+    return ['ok' => false, 'erro' => $resp['message'] ?? 'Erro desconhecido'];
 }
 
-echo "✅ BOT PRONTO — NÃO PRECISA MEXER EM NADA!\n";
+echo "✅ BOT PRONTO — TUDO FIXO!\n";
 
 while (true) {
     foreach ($pagamentos_pendentes as $uid => $pg) {
@@ -135,7 +131,7 @@ while (true) {
                 $conta = criarUsuario($login, $senha, $pg['dias']);
                 
                 if ($conta['ok']) {
-                    $msg = "✅ <b>PAGAMENTO CONFIRMADO!</b>\n\n🔐 <b>SEUS DADOS DE ACESSO</b>\n\n👤 Login: <code>{$conta['login']}</code>\n🔑 Senha: <code>{$conta['senha']}</code>\n📅 Válido até: {$conta['expira']}\n\n🌐 Use o IP desta VPS para conectar!";
+                    $msg = "✅ <b>PAGAMENTO CONFIRMADO!</b>\n\n🔐 <b>SEUS DADOS DE ACESSO</b>\n\n👤 Login: <code>{$conta['login']}</code>\n🔑 Senha: <code>{$conta['senha']}</code>\n📅 Válido até: {$conta['expira']}\n\n🌐 Use o IP desta VPS!";
                     enviar(['chat_id' => $uid, 'text' => $msg, 'parse_mode' => 'html'], true);
                     enviar(['chat_id' => $GLOBALS['admin_id'], 'text' => "💰 PAGO — SSH\n👤 $uid | {$pg['dias']} dias\nLogin: $login\nSenha: $senha\nValor: R$ ".number_format($pg['valor'],2,',','')]);
                 } else {
@@ -174,6 +170,8 @@ while (true) {
                 if ($pix['ok']) {
                     $pagamentos_pendentes[$uid] = ['mp_id' => $pix['id'], 'tipo' => 'ssh', 'dias' => $pl['dias'], 'valor' => $pl['valor'], 'tempo' => time()];
                     enviar(['chat_id' => $cid, 'text' => "💳 <b>PAGAMENTO VIA PIX</b>\n\n{$pl['nome']}\nValor: R$ ".number_format($pl['valor'],2,',','')."\n\nCopie e cole:\n<pre>{$pix['pix']}</pre>", 'parse_mode' => 'html'], true);
+                } else {
+                    enviar(['chat_id' => $cid, 'text' => "❌ Erro ao gerar PIX: ".$pix['erro'], 'parse_mode' => 'html'], true);
                 }
                 continue;
             }
@@ -181,7 +179,9 @@ while (true) {
                 $op = substr($data, 3);
                 $sessao[$cid]['op'] = $op;
                 $btns = [];
-                foreach ($operadoras[$op]['valores'] as $v) $btns[] = [['text' => "R$ $v,00", 'callback_data' => "val_{$op}_$v"]];
+                foreach ($operadoras[$op]['valores'] as $v) {
+                    $btns[] = [['text' => "R$ $v,00", 'callback_data' => "val_{$op}_$v"]];
+                }
                 enviar(['chat_id' => $cid, 'text' => "💰 Valores — {$operadoras[$op]['nome']}:", 'reply_markup' => json_encode(['inline_keyboard' => $btns])], true);
                 continue;
             }
@@ -211,7 +211,11 @@ while (true) {
             $op = $sessao[$cid]['op'];
             $valor = $sessao[$cid]['valor'];
             $pix = gerarPix($valor, "Recarga {$operadoras[$op]['nome']} — $num", $mp_token);
-            if (!$pix['ok']) { enviar(['chat_id' => $cid, 'text' => '❌ Erro ao gerar PIX'], true); unset($sessao[$cid]); continue; }
+            if (!$pix['ok']) { 
+                enviar(['chat_id' => $cid, 'text' => '❌ Erro ao gerar PIX: '.$pix['erro']], true); 
+                unset($sessao[$cid]); 
+                continue; 
+            }
             $pagamentos_pendentes[$uid] = ['mp_id' => $pix['id'], 'tipo' => 'recarga', 'numero' => $num, 'op' => $op, 'nome_op' => $operadoras[$op]['nome'], 'valor' => $valor, 'tempo' => time()];
             enviar(['chat_id' => $cid, 'text' => "💳 PIX — RECARGA\n\n📱 $num\n📶 {$operadoras[$op]['nome']}\n💰 R$ ".number_format($valor,2,',','')."\n\n<pre>{$pix['pix']}</pre>", 'parse_mode' => 'html'], true);
             unset($sessao[$cid]);
