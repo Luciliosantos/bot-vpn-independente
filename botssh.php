@@ -16,7 +16,7 @@ $offset = 0;
 $sessao = [];
 $pagamentos_pendentes = [];
 $testes_feitos = [];
-$mensagem_para_apagar = []; // SÓ apaga essas — NÃO toca no teclado!
+$mensagem_para_apagar = [];
 
 // Planos SSH
 $planos = [
@@ -284,11 +284,11 @@ while (true) {
         // ==============================================
         if ($txt === '/start' || $txt === 'Voltar') {
             limparMensagensAnteriores($cid);
-            // ⬇️ AQUI O TECLADO É ENVIADO — NUNCA MAIS É TOCADO!
+            // ⬇️ false = NÃO marca pra apagar = FICA FIXO!
             enviar(['chat_id' => $cid, 'text' => '👋 Bem-vindo! Escolha uma opção:', 'reply_markup' => json_encode(teclado([
                 ['Comprar SSH', 'Teste Grátis'],
                 ['Recarga de Celular', 'Ajuda']
-            ]))], false); // false = NÃO marca pra apagar = FICA FIXO!
+            ]))], false);
         }
         elseif ($txt === 'Comprar SSH') {
             limparMensagensAnteriores($cid);
