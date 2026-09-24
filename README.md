@@ -3,24 +3,20 @@
 # script de instalação 
 
 
-apt update -y && apt install php-cli php-curl wget screen -y &&
-mkdir -p /root/bot && cd /root/bot &&
-wget -qO botssh.php https://raw.githubusercontent.com/Luciliosantos/bot-vpn-independente/main/botssh.php &&
-php -l botssh.php &&
-screen -dmS bot bash -c 'while true; do php botssh.php; sleep 5; done' &&
-echo "" &&
-echo "✅ BOT INSTALADO E RODANDO!" &&
-echo "======================================" &&
-echo "👉 Para SAIR sem PARAR o bot:" &&
-echo "   APERTE: Ctrl + A  DEPOIS APERTE: D" &&
-echo "======================================" &&
-echo "" &&
-echo "Para voltar a ver o bot depois:" &&
-echo "screen -r bot" &&
-echo "" &&
-screen -r bot
+
+systemctl stop bot-ssh.service &&
+wget -qO /root/bot/botssh.php https://raw.githubusercontent.com/Luciliosantos/bot-vpn-independente/main/botssh.php &&
+chmod +x /root/bot/botssh.php &&
+sed -i 's/\r$//' /root/bot/botssh.php &&
+systemctl daemon-reload &&
+systemctl start bot-ssh.service &&
+echo "✅ ATUALIZADO COM SUCESSO!" &&
+systemctl status bot-ssh.service --no-pager
 
 
 # comando de atualização
 
-pkill -9 -f botssh 2>/dev/null && cd /root/bot && wget -qO botssh.php https://raw.githubusercontent.com/Luciliosantos/bot-vpn-independente/main/botssh.php && sed -i "s|\$token = '.*';|\$token = '8995379428:AAEdxzxUPguxuX51HNjUQ8c65HkjPzV4MZY';|" botssh.php && php -l botssh.php && screen -wipe 2>/dev/null && screen -dmS bot bash -c 'while true; do php /root/bot/botssh.php; sleep 3; done' && echo "✅ ATUALIZADO!"
+wget -qO /root/bot/botssh.php https://raw.githubusercontent.com/Luciliosantos/bot-vpn-independente/main/botssh.php &&
+systemctl restart bot-ssh.service &&
+echo "✅ Atualizado!"
+
