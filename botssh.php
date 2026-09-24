@@ -187,7 +187,7 @@ while (true) {
         if ($texto === '/start' || $texto === 'Voltar') {
             enviar([
                 'chat_id' => $cid,
-                'text' => "👋 Bem-vindo! Escolha uma opção abaixo:",
+                'text' => "👋 Bem-vindoo! Escolha uma opção abaixo:",
                 'reply_markup' => json_encode(teclado([
                     ['Comprar SSH', 'Teste Grátis'],
                     ['Recarga de Celular', 'Ajuda']
