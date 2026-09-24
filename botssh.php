@@ -97,8 +97,6 @@ while (true) {
                 
                 if (isset($mp_resp['point_of_interaction']['transaction_data']['qr_code'])) {
                     $pix_copia = $mp_resp['point_of_interaction']['transaction_data']['qr_code'];
-                    $pagamentos[$uid] = ['plano' => $pid, 'id' => $mp_resp['id']];
-                    
                     enviar([
                         'chat_id' => $cid,
                         'text' => "💳 <b>PAGAMENTO VIA PIX</b>\n\n⏳ Plano: {$plano['nome']}\n💰 Valor: R$ ".number_format($plano['valor'],2,',','')."\n\n📋 Copie e cole no app do banco:\n<pre>$pix_copia</pre>\n\n✅ Após confirmação, envio os dados de acesso!\n⌛ Pode demorar até 8h para processar.",
@@ -192,9 +190,10 @@ while (true) {
         }
         elseif ($texto === 'Teste Grátis') {
             if (podeTestar($uid)) {
+                $login = 'teste_'.substr(md5($uid.time()), 0, 6);
                 enviar([
                     'chat_id' => $cid,
-                    'text' => "✅ Teste liberado!\n\n🔐 Login: teste_".substr(md5($uid.time()), 0, 6)."\n🔑 Senha: 12345678\n⏳ Válido por 24h\n\n⚠️ Apenas 1 teste por dia."
+                    'text' => "✅ Teste liberado!\n\n🔐 Login: $login\n🔑 Senha: 12345678\n⏳ Válido por 24h\n\n⚠️ Apenas 1 teste por dia."
                 ]);
                 enviar(['chat_id' => $admin_id, 'text' => "🎁 Novo teste grátis — Usuário: $uid"]);
             } else {
@@ -219,7 +218,7 @@ while (true) {
         elseif ($texto === 'Ajuda') {
             enviar([
                 'chat_id' => $cid,
-                'text' => "ℹ️ <b>AJUDA</b>\n\n🛒 Comprar SSH → Escolha → PIX → Receba dados\n🎁 Teste Grátis → 1 por dia, 24h\n📱 Recarga → Preencha → Eu faço manual\n\nDúvidas? Fale com o administrador.",
+                'text' => "ℹ️ <b>AJUDA</b>\n\n🛒 Comprar SSH → Escolha → PIX → Receba dados\n🎁 Teste Grátis → 1 por dia, válido 24h\n📱 Recarga → Preencha → Eu faço manual\n\nDúvidas? Fale com o administrador.",
                 'parse_mode' => 'html'
             ]);
         }
