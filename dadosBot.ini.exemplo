@@ -1,12 +1,12 @@
 [GERAL]
-token = SEU_TOKEN_AQUI
+token = 8174530969:AAHTMbMf1KEbIU5c-4aCtaiBRDvF4Dn9-Bs
 admin_id = 7761133138
 
 [PAINEL_VPN]
-ip = IP_DA_VPS_COM_PAINEL
+ip = 151.244.242.203
 usuario_ssh = root
-senha_ssh = SUA_SENHA_SSH
+senha_ssh = Lucilio1999$
 caminho = /root/Sistema/
 
 [MERCADO_PAGO]
-access_token = SEU_TOKEN_AQUI
+access_token = APP_USR-7527190269570273-090920-8e00f0eee8a23cb2fdd7f7d8db4a4dbf-226024458
