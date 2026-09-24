@@ -4,9 +4,9 @@ ini_set('display_errors', 0);
 set_time_limit(0);
 
 // ==============================================
-// DADOS — ALTERE AQUI SE PRECISAR
+// DADOS — CONFERE SE ESTÃO CERTOS!
 // ==============================================
-$token = '8174530969:AAHTbMfYbT5GPQZgX9QzqXhV6Y9k2L3M4N5';
+$token = '8174530969:AAHTMbMf1KEbIU5c-4aCtaiBRDvF4Dn9-Bs';
 $admin_id = 7761133138;
 $mp_token = 'APP_USR-7527190269570273-090920-8e00f0eee8a23cb2fdd7f7d8db4a4dbf-226024458';
 
