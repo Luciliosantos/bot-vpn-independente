@@ -16,8 +16,7 @@ $offset = 0;
 $sessao = [];
 $pagamentos_pendentes = [];
 $testes_feitos = [];
-$ultima_msg_acumulada = [];
-$teclado_ja_enviado = []; // NÃO reenvia o teclado = NÃO SOME!
+$mensagem_para_apagar = []; // SÓ apaga essas — NÃO toca no teclado!
 
 // Planos SSH
 $planos = [
@@ -36,23 +35,26 @@ $operadoras = [
     'oi'    => ['nome' => '📱 Oi',    'valores' => [15, 30, 50, 70, 100]],
 ];
 
-function limparAcumulada($cid) {
-    global $api, $ultima_msg_acumulada;
-    if (!empty($ultima_msg_acumulada[$cid])) {
-        $ch = curl_init($api."deleteMessage");
-        curl_setopt($ch, CURLOPT_POST, 1);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-            'chat_id' => $cid,
-            'message_id' => $ultima_msg_acumulada[$cid]
-        ]));
-        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
-        curl_exec($ch);
-        curl_close($ch);
+function limparMensagensAnteriores($cid) {
+    global $api, $mensagem_para_apagar;
+    if (!empty($mensagem_para_apagar[$cid])) {
+        foreach ($mensagem_para_apagar[$cid] as $mid) {
+            $ch = curl_init($api."deleteMessage");
+            curl_setopt($ch, CURLOPT_POST, 1);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+                'chat_id' => $cid,
+                'message_id' => $mid
+            ]));
+            curl_setopt($ch, CURLOPT_TIMEOUT, 1);
+            curl_exec($ch);
+            curl_close($ch);
+        }
     }
+    $mensagem_para_apagar[$cid] = [];
 }
 
-function enviar($dados, $salvar_acumulada=false) {
-    global $api, $ultima_msg_acumulada;
+function enviar($dados, $marcar_para_apagar=false) {
+    global $api, $mensagem_para_apagar;
     $ch = curl_init($api."sendMessage");
     curl_setopt($ch, CURLOPT_POST, 1);
     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($dados));
@@ -60,10 +62,10 @@ function enviar($dados, $salvar_acumulada=false) {
     curl_setopt($ch, CURLOPT_TIMEOUT, 10);
     $resp = curl_exec($ch);
     curl_close($ch);
-    if ($salvar_acumulada && $resp) {
+    if ($marcar_para_apagar && $resp) {
         $r = json_decode($resp, true);
         if (isset($r['result']['message_id'])) {
-            $ultima_msg_acumulada[$dados['chat_id']] = $r['result']['message_id'];
+            $mensagem_para_apagar[$dados['chat_id']][] = $r['result']['message_id'];
         }
     }
 }
@@ -130,7 +132,7 @@ while (true) {
                     'chat_id' => $uid,
                     'text' => "✅ <b>PAGAMENTO CONFIRMADO!</b>\n\n".gerarAcesso($pg['dias']),
                     'parse_mode' => 'html'
-                ]);
+                ], true);
                 enviar([
                     'chat_id' => $GLOBALS['admin_id'],
                     'text' => "💰 PAGO — SSH\n👤 $uid | {$pg['dias']} dias | R$ ".number_format($pg['valor'],2,',','')
@@ -140,7 +142,7 @@ while (true) {
                     'chat_id' => $uid,
                     'text' => "✅ <b>PAGAMENTO CONFIRMADO!</b>\n📱 Recarga em processamento!\nPode demorar até 8h.",
                     'parse_mode' => 'html'
-                ]);
+                ], true);
                 enviar([
                     'chat_id' => $GLOBALS['admin_id'],
                     'text' => "💰 PAGO — RECARGA\n👤 Usuário: $uid\n📱 Número: {$pg['numero']}\n📶 Operadora: {$pg['nome_op']}\n💰 Valor: R$ ".number_format($pg['valor'],2,',','')."\n\n👉 Faça a recarga e avise o cliente!",
@@ -168,7 +170,7 @@ while (true) {
             $data = $cb['data'];
             file_get_contents($api."answerCallbackQuery?id=".$cb['id']);
             
-            limparAcumulada($cid);
+            limparMensagensAnteriores($cid);
             
             if (strpos($data, 'plano_') === 0) {
                 $pid = (int)substr($data, 6);
@@ -238,7 +240,7 @@ while (true) {
         $txt = trim($msg['text'] ?? '');
         
         if (isset($sessao[$cid]['etapa']) && $sessao[$cid]['etapa'] === 'digitar_numero') {
-            limparAcumulada($cid);
+            limparMensagensAnteriores($cid);
             
             $num = preg_replace('/\D/', '', $txt);
             if (strlen($num) < 10 || strlen($num) > 11) {
@@ -278,24 +280,18 @@ while (true) {
         }
         
         // ==============================================
-        // 🔑 TECLADO FIXO — SÓ ENVIA 1 VEZ POR USUÁRIO!
+        // 🔑 TECLADO PRINCIPAL — NUNCA APAGA, NUNCA SOME!
         // ==============================================
         if ($txt === '/start' || $txt === 'Voltar') {
-            limparAcumulada($cid);
-            if (!isset($teclado_ja_enviado[$cid])) {
-                // SÓ ENVIA O TECLADO NA PRIMEIRA VEZ = NÃO SOME!
-                enviar(['chat_id' => $cid, 'text' => '👋 Bem-vindo! Escolha uma opção:', 'reply_markup' => json_encode(teclado([
-                    ['Comprar SSH', 'Teste Grátis'],
-                    ['Recarga de Celular', 'Ajuda']
-                ]))], true);
-                $teclado_ja_enviado[$cid] = true;
-            } else {
-                // NAS OUTRAS VEZES SÓ MANDA A MENSAGEM SEM TECLADO = NÃO TROCA!
-                enviar(['chat_id' => $cid, 'text' => '👋 Bem-vindo! Escolha uma opção:'], true);
-            }
+            limparMensagensAnteriores($cid);
+            // ⬇️ AQUI O TECLADO É ENVIADO — NUNCA MAIS É TOCADO!
+            enviar(['chat_id' => $cid, 'text' => '👋 Bem-vindo! Escolha uma opção:', 'reply_markup' => json_encode(teclado([
+                ['Comprar SSH', 'Teste Grátis'],
+                ['Recarga de Celular', 'Ajuda']
+            ]))], false); // false = NÃO marca pra apagar = FICA FIXO!
         }
         elseif ($txt === 'Comprar SSH') {
-            limparAcumulada($cid);
+            limparMensagensAnteriores($cid);
             $botoes = [];
             foreach ($planos as $pid => $pl) {
                 $botoes[] = [['text' => $pl['nome'], 'callback_data' => "plano_$pid"]];
@@ -303,7 +299,7 @@ while (true) {
             enviar(['chat_id' => $cid, 'text' => '🛒 Escolha seu plano:', 'reply_markup' => json_encode(['inline_keyboard' => $botoes])], true);
         }
         elseif ($txt === 'Teste Grátis') {
-            limparAcumulada($cid);
+            limparMensagensAnteriores($cid);
             if (podeTestar($uid)) {
                 enviar(['chat_id' => $cid, 'text' => "✅ TESTE LIBERADO!\n\n".gerarAcesso(1)."\n\n⚠️ 1 teste por dia.", 'parse_mode' => 'html'], true);
                 enviar(['chat_id' => $admin_id, 'text' => "🎁 Novo teste — $uid"]);
@@ -312,7 +308,7 @@ while (true) {
             }
         }
         elseif ($txt === 'Recarga de Celular') {
-            limparAcumulada($cid);
+            limparMensagensAnteriores($cid);
             $botoes = [];
             foreach ($operadoras as $chave => $op) {
                 $botoes[] = [['text' => $op['nome'], 'callback_data' => "op_$chave"]];
@@ -320,7 +316,7 @@ while (true) {
             enviar(['chat_id' => $cid, 'text' => '📱 Escolha a operadora:', 'reply_markup' => json_encode(['inline_keyboard' => $botoes])], true);
         }
         elseif ($txt === 'Ajuda') {
-            limparAcumulada($cid);
+            limparMensagensAnteriores($cid);
             enviar(['chat_id' => $cid, 'text' => 'ℹ️ <b>AJUDA</b>\n\n🛒 Comprar SSH → Escolher → Pagar → Receber automático\n📱 Recarga → Operadora → Valor → Número → Pagar → Processamos\n🎁 Teste → 1 por dia\n⌛ Recarga pode demorar até 8h.\n\nDúvidas? Fale com o administrador.', 'parse_mode' => 'html'], true);
         }
     }
