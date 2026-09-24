@@ -4,10 +4,12 @@ ini_set('display_errors', 0);
 set_time_limit(0);
 
 // ==============================================
-// SEUS DADOS — TOKEN ATUALIZADO ✅
+// SEUS DADOS — CONFERE TUDO AQUI!
 // ==============================================
 $token = '8591852336:AAHHK2tuPC0tjJK9G8gcjBk8x2FxylSVQu8';
 $admin_id = 7761133138;
+
+// ⚠️ CONFERE SE O TOKEN DO MERCADO PAGO ESTÁ CERTO!
 $mp_token = 'APP_USR-7527190269570273-090920-8e00f0eee8a23cb2fdd7f7d8db4a4dbf-226024458';
 
 $api = "https://api.telegram.org/bot$token/";
@@ -35,7 +37,19 @@ $recargas = [
 ];
 
 // ==============================================
-// CRIA CONTA REAL — chama gerarusuario.sh
+// PEGA IP PÚBLICO CORRETO
+// ==============================================
+function getIpPublic(){
+    $ch = curl_init("https://api.ipify.org");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+    $ip = trim(curl_exec($ch));
+    curl_close($ch);
+    return $ip ?: gethostbyname(gethostname());
+}
+
+// ==============================================
+// CRIA CONTA REAL
 // ==============================================
 function criarContaReal($dias){
     $usuario = substr(str_shuffle('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 8);
@@ -51,7 +65,7 @@ function criarContaReal($dias){
     }
     
     $expira = date('d/m/Y', strtotime("+$dias days"));
-    $ip_servidor = gethostbyname(gethostname());
+    $ip_servidor = getIpPublic();
     
     return [
         'ok' => true,
@@ -77,30 +91,56 @@ function podeTestar($uid){
     return true;
 }
 
+// ==============================================
+// GERA PIX — COM DEBUG PARA VER ERRO
+// ==============================================
 function gerarPix($valor, $desc){
     global $mp_token;
+    
+    if(empty($mp_token) || strpos($mp_token, 'APP_USR-') !== 0){
+        return ['ok'=>false, 'erro'=>'Token do Mercado Pago inválido ou vazio!'];
+    }
+    
     $dados = [
-        "transaction_amount" => $valor,
+        "transaction_amount" => (float)$valor,
         "description" => $desc,
         "payment_method_id" => "pix",
-        "payer" => ["email" => "cliente@bot.com", "first_name" => "Cliente"]
+        "payer" => [
+            "email" => "cliente_".uniqid()."@gmail.com",
+            "first_name" => "Cliente",
+            "last_name" => "Telegram"
+        ]
     ];
+    
     $ch = curl_init("https://api.mercadopago.com/v1/payments");
     curl_setopt_array($ch, [
         CURLOPT_POST => 1,
         CURLOPT_POSTFIELDS => json_encode($dados),
-        CURLOPT_HTTPHEADER => ["Content-Type: application/json", "Authorization: Bearer $mp_token"],
+        CURLOPT_HTTPHEADER => [
+            "Content-Type: application/json",
+            "Authorization: Bearer $mp_token"
+        ],
         CURLOPT_RETURNTRANSFER => 1,
         CURLOPT_SSL_VERIFYPEER => 0,
         CURLOPT_TIMEOUT => 15
     ]);
-    $resp = json_decode(curl_exec($ch), true);
+    
+    $resposta_bruta = curl_exec($ch);
+    $codigo_http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    
+    $resp = json_decode($resposta_bruta, true);
+    
+    if($codigo_http !== 201 && $codigo_http !== 200){
+        $erro_msg = $resp['message'] ?? 'Erro desconhecido';
+        return ['ok'=>false, 'erro'=>"Erro $codigo_http: $erro_msg"];
+    }
     
     if(isset($resp['point_of_interaction']['transaction_data']['qr_code']) && isset($resp['id'])){
         return ['ok'=>true, 'pix'=>$resp['point_of_interaction']['transaction_data']['qr_code'], 'id'=>$resp['id']];
     }
-    return ['ok'=>false, 'erro'=>$resp['message']??'Erro ao gerar PIX'];
+    
+    return ['ok'=>false, 'erro'=>'Resposta inesperada do Mercado Pago'];
 }
 
 function verificarPagamento($id_pag){
@@ -131,7 +171,7 @@ function editar($d){
     curl_exec($ch); curl_close($ch);
 }
 
-echo "✅ BOT INICIADO — TOKEN NOVO!\n";
+echo "✅ BOT INICIADO — PIX CORRIGIDO!\n";
 
 while(true){
     foreach($pagamentos as $id_pag => $pedido){
@@ -142,8 +182,6 @@ while(true){
                 if($conta['ok']){
                     enviar(['chat_id'=>$cid, 'text'=>$conta['texto'], 'parse_mode'=>'html']);
                     enviar(['chat_id'=>$GLOBALS['admin_id'], 'text'=>"💰 VENDA CONFIRMADA!\n👤 Cliente: $cid\n📋 Usuário: {$conta['usuario']}\n⏱️ Dias: {$pedido['dias']}\n💵 R$ ".number_format($pedido['valor'],2,',','')]);
-                } else {
-                    enviar(['chat_id'=>$cid, 'text'=>'✅ Pago! Erro ao criar conta — fale com suporte.', 'parse_mode'=>'html']);
                 }
             } else {
                 enviar(['chat_id'=>$cid, 'text'=>"✅ <b>PAGAMENTO CONFIRMADO!</b>\n📱 Recarga em processamento — até 8h.", 'parse_mode'=>'html']);
@@ -217,7 +255,7 @@ while(true){
                 $pagamentos[$pix['id']] = ['cid'=>$cid, 'tipo'=>'ssh', 'dias'=>$p['dias'], 'valor'=>$p['valor']];
                 editar(['chat_id'=>$cid,'message_id'=>$mid,'text'=>"💳 <b>PAGAMENTO VIA PIX</b>\n\n⏳ {$p['nome']}\n💰 Valor: R$ ".number_format($p['valor'],2,',','')."\n\n📋 Copie e cole:\n<pre>{$pix['pix']}</pre>\n✅ Após pagar, conta é criada automática!", 'parse_mode'=>'html']);
             } else {
-                editar(['chat_id'=>$cid,'message_id'=>$mid,'text'=>'❌ Erro: '.($pix['erro']??'Tente novamente'), 'parse_mode'=>'html']);
+                editar(['chat_id'=>$cid,'message_id'=>$mid,'text'=>"❌ {$pix['erro']}\n\nVerifique o token do Mercado Pago.", 'parse_mode'=>'html']);
             }
             continue;
         }
@@ -263,7 +301,7 @@ while(true){
             $v = $sessao[$cid]['valor'];
             $pix = gerarPix($v, "Recarga {$recargas[$op]['nome']} - $num");
             if(!$pix['ok']){
-                enviar(['chat_id'=>$cid,'text'=>'❌ Erro ao gerar PIX','parse_mode'=>'html']);
+                enviar(['chat_id'=>$cid,'text'=>"❌ {$pix['erro']}",'parse_mode'=>'html']);
                 unset($sessao[$cid]);
                 continue;
             }
