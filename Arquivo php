@@ -4,14 +4,14 @@ ini_set('display_errors', 0);
 set_time_limit(0);
 
 // ==============================================
-// DADOS — TUDO AQUI
+// DADOS — TUDO CERTINHO AQUI
 // ==============================================
-$token = '8995379428:AAEdxzxUPguxuX51HNjUQ8c65HkjPzV4MZY';
+$token = '8999330752:AAF-JcIr6AwhK7uPkrOCtFUPUaN294SKDBk'; // ✅ CERTO
 $admin_id = 7761133138;
 $mp_token = 'APP_USR-7527190269570273-090920-8e00f0eee8a23cb2fdd7f7d8db4a4dbf-226024458';
 
 $api = "https://api.telegram.org/bot$token/";
-$api_mp = "https://api.mercadopago.com/v1/payments";
+$api_mp = "https://api.mercadopago.com/v1/payments"; // ✅ Com /v1/
 $offset = 0;
 $sessao = [];
 $pagamentos_pendentes = [];
@@ -42,12 +42,10 @@ function limparMensagensAnteriores($cid) {
             $ch = curl_init($api."deleteMessage");
             curl_setopt($ch, CURLOPT_POST, 1);
             curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-                'chat_id' => $cid,
-                'message_id' => $mid
+                'chat_id' => $cid, 'message_id' => $mid
             ]));
             curl_setopt($ch, CURLOPT_TIMEOUT, 1);
-            curl_exec($ch);
-            curl_close($ch);
+            curl_exec($ch); curl_close($ch);
         }
     }
     $mensagem_para_apagar[$cid] = [];
@@ -60,8 +58,7 @@ function enviar($dados, $marcar_para_apagar=false) {
     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($dados));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-    $resp = curl_exec($ch);
-    curl_close($ch);
+    $resp = curl_exec($ch); curl_close($ch);
     if ($marcar_para_apagar && $resp) {
         $r = json_decode($resp, true);
         if (isset($r['result']['message_id'])) {
@@ -103,16 +100,15 @@ function gerarPix($valor, $desc, $mp_token) {
     curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-    $resp = json_decode(curl_exec($ch), true);
-    curl_close($ch);
+    $resp = json_decode(curl_exec($ch), true); curl_close($ch);
     
     if (isset($resp['point_of_interaction']['transaction_data']['qr_code']) && isset($resp['id'])) {
         return ['ok' => true, 'pix' => $resp['point_of_interaction']['transaction_data']['qr_code'], 'id' => $resp['id']];
     }
-    return ['ok' => false];
+    return ['ok' => false, 'erro' => $resp['message'] ?? 'Não gerou PIX'];
 }
 
-echo "✅ BOT INICIADO — TECLADO FIXO!\n";
+echo "✅ BOT INICIADO — TOKEN CORRIGIDO!\n";
 
 while (true) {
     foreach ($pagamentos_pendentes as $uid => $pg) {
@@ -120,11 +116,10 @@ while (true) {
             unset($pagamentos_pendentes[$uid]);
             continue;
         }
-        $ch = curl_init($api_mp."/".$pg['mp_id']."?access_token=$mp_token");
+        $ch = curl_init("$api_mp/{$pg['mp_id']}?access_token=$mp_token");
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 8);
-        $resp = json_decode(curl_exec($ch), true);
-        curl_close($ch);
+        $resp = json_decode(curl_exec($ch), true); curl_close($ch);
         
         if (isset($resp['status']) && $resp['status'] === 'approved') {
             if ($pg['tipo'] === 'ssh') {
@@ -191,7 +186,7 @@ while (true) {
                         'parse_mode' => 'html'
                     ], true);
                 } else {
-                    enviar(['chat_id'=>$cid, 'text'=>'❌ Erro ao gerar PIX'], true);
+                    enviar(['chat_id'=>$cid, 'text'=>'❌ Erro ao gerar PIX: '.($pix['erro']??'Tente novamente')], true);
                 }
                 continue;
             }
@@ -279,12 +274,8 @@ while (true) {
             continue;
         }
         
-        // ==============================================
-        // 🔑 TECLADO PRINCIPAL — NUNCA APAGA, NUNCA SOME!
-        // ==============================================
         if ($txt === '/start' || $txt === 'Voltar') {
             limparMensagensAnteriores($cid);
-            // ⬇️ false = NÃO marca pra apagar = FICA FIXO!
             enviar(['chat_id' => $cid, 'text' => '👋 Bem-vindo! Escolha uma opção:', 'reply_markup' => json_encode(teclado([
                 ['Comprar SSH', 'Teste Grátis'],
                 ['Recarga de Celular', 'Ajuda']
