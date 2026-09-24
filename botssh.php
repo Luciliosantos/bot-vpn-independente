@@ -117,7 +117,6 @@ function gerarPix($valor, $desc, $mp_token) {
     $resp = json_decode(curl_exec($ch), true);
     curl_close($ch);
     
-    // ✅ Procura PIX em TODOS os lugares
     $pix_copia = '';
     if (!empty($resp['point_of_interaction']['transaction_data']['qr_code'])) {
         $pix_copia = $resp['point_of_interaction']['transaction_data']['qr_code'];
@@ -174,7 +173,6 @@ while (true) {
         }
     }
 
-    // ✅ OFFSET CORRIGIDO + allowed_updates
     $parametros = http_build_query([
         'offset' => $ultimo_id + 1,
         'timeout' => 15,
@@ -187,7 +185,6 @@ while (true) {
     if (!isset($dados['result'])) { sleep(1); continue; }
     
     foreach ($dados['result'] as $at) {
-        // ✅ Avança o offset SEMPRE antes de processar
         if ($at['update_id'] > $ultimo_id) {
             $ultimo_id = $at['update_id'];
         }
@@ -198,9 +195,7 @@ while (true) {
             $uid = $cb['from']['id'];
             $data = $cb['data'];
             
-            // ✅ RESPONDE O CLIQUE PRIMEIRO — sem isso trava!
             responderClique($cb['id']);
-            
             limparMensagensAnteriores($cid);
             
             if (strpos($data, 'plano_') === 0) {
@@ -310,9 +305,6 @@ while (true) {
             continue;
         }
         
-        // ==============================================
-        // 🔑 TECLADO PRINCIPAL — NUNCA APAGA, NUNCA SOME!
-        // ==============================================
         if ($txt === '/start' || $txt === 'Voltar') {
             limparMensagensAnteriores($cid);
             enviar(['chat_id' => $cid, 'text' => '👋 Bem-vindo! Escolha uma opção:', 'reply_markup' => json_encode(teclado([
