@@ -16,7 +16,7 @@ $offset = 0;
 $sessao = [];
 $pagamentos_pendentes = [];
 $testes_feitos = [];
-$ultima_msg_acumulada = []; // Apenas mensagens em cima
+$ultima_msg_acumulada = [];
 
 // Planos SSH
 $planos = [
@@ -276,7 +276,6 @@ while (true) {
             continue;
         }
         
-        // === MENU PRINCIPAL — NÃO APAGA O TECLADO DE BAIXO! ===
         if ($txt === '/start' || $txt === 'Voltar') {
             limparAcumulada($cid);
             enviar(['chat_id' => $cid, 'text' => '👋 Bem-vindo! Escolha uma opção:', 'reply_markup' => json_encode(teclado([
