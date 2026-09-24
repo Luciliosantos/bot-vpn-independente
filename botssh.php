@@ -3,9 +3,7 @@ error_reporting(0);
 ini_set('display_errors', 0);
 set_time_limit(0);
 
-// ==============================================
-// DADOS DIRETOS AQUI — SEM ARQUIVO EXTERNO
-// ==============================================
+// === DADOS ===
 $token = '8999330752:AAF-JcIr6AwhK7uPkrOCtFUPUaN294SKDBk';
 $admin_id = 7761133138;
 $mp_token = 'APP_USR-7527190269570273-090920-8e00f0eee8a23cb2fdd7f7d8db4a4dbf-226024458';
@@ -17,21 +15,21 @@ $sessao = [];
 $pagamentos = [];
 $testes_feitos = [];
 
-// Planos SSH
+// Planos
 $planos = [
-    1  => ['dias' => 1,  'valor' => 1.00,  'nome' => '1 Dia — R$ 1,00'],
-    2  => ['dias' => 5,  'valor' => 4.00,  'nome' => '5 Dias — R$ 4,00'],
-    3  => ['dias' => 10, 'valor' => 10.00, 'nome' => '10 Dias — R$ 10,00'],
-    4  => ['dias' => 15, 'valor' => 14.00, 'nome' => '15 Dias — R$ 14,00'],
-    5  => ['dias' => 30, 'valor' => 20.00, 'nome' => '30 Dias — R$ 20,00'],
+    1 => ['dias' => 1, 'valor' => 1.00, 'nome' => '1 Dia — R$ 1,00'],
+    2 => ['dias' => 5, 'valor' => 4.00, 'nome' => '5 Dias — R$ 4,00'],
+    3 => ['dias' => 10, 'valor' => 10.00, 'nome' => '10 Dias — R$ 10,00'],
+    4 => ['dias' => 15, 'valor' => 14.00, 'nome' => '15 Dias — R$ 14,00'],
+    5 => ['dias' => 30, 'valor' => 20.00, 'nome' => '30 Dias — R$ 20,00'],
 ];
 
-// Operadoras de recarga
+// Operadoras
 $operadoras = [
-    'vivo'    => ['nome' => '📱 Vivo',    'valores' => [10, 20, 30, 50, 100]],
-    'claro'   => ['nome' => '📱 Claro',   'valores' => [15, 25, 35, 50, 75]],
-    'tim'     => ['nome' => '📱 Tim',     'valores' => [10, 20, 40, 60, 80]],
-    'oi'      => ['nome' => '📱 Oi',      'valores' => [15, 30, 50, 70, 100]],
+    'vivo'  => ['nome' => '📱 Vivo',  'valores' => [10,20,30,50,100]],
+    'claro' => ['nome' => '📱 Claro', 'valores' => [15,25,35,50,75]],
+    'tim'   => ['nome' => '📱 Tim',   'valores' => [10,20,40,60,80]],
+    'oi'    => ['nome' => '📱 Oi',    'valores' => [15,30,50,70,100]],
 ];
 
 function enviar($dados) {
@@ -44,14 +42,14 @@ function enviar($dados) {
     curl_close($ch);
 }
 
-function teclado($botoes, $resizer = true) {
-    return ['keyboard' => $botoes, 'resize_keyboard' => $resizer];
+function teclado($botoes, $res=true) {
+    return ['keyboard' => $botoes, 'resize_keyboard' => $res];
 }
 
 function podeTestar($uid) {
     global $testes_feitos;
     $hoje = date('Y-m-d');
-    if (isset($testes_feitos[$uid]) && $testes_feitos[$uid] === $hoje) return false;
+    if (isset($testes_feitos[$uid]) && $testes_feitos[$uid]===$hoje) return false;
     $testes_feitos[$uid] = $hoje;
     return true;
 }
@@ -61,31 +59,30 @@ echo "✅ BOT INICIADO — Funcionando!\n";
 while (true) {
     $url = $api."getUpdates?offset=$offset&timeout=15";
     $resp = @file_get_contents($url);
-    if ($resp === false) { sleep(2); continue; }
-    
+    if ($resp===false) { sleep(2); continue; }
     $dados = json_decode($resp, true);
     if (!isset($dados['result'])) { sleep(1); continue; }
     
-    foreach ($dados['result'] as $atualizacao) {
-        $offset = $atualizacao['update_id'] + 1;
+    foreach ($dados['result'] as $at) {
+        $offset = $at['update_id']+1;
         
-        if (isset($atualizacao['callback_query'])) {
-            $cb = $atualizacao['callback_query'];
+        if (isset($at['callback_query'])) {
+            $cb = $at['callback_query'];
             $cid = $cb['message']['chat']['id'];
             $uid = $cb['from']['id'];
-            $dados_cb = $cb['data'];
+            $data = $cb['data'];
             file_get_contents($api."answerCallbackQuery?id=".$cb['id']);
             
-            if (strpos($dados_cb, 'plano_') === 0) {
-                $pid = (int)substr($dados_cb, 6);
+            if (strpos($data, 'plano_')===0) {
+                $pid = (int)substr($data,6);
                 if (!isset($planos[$pid])) continue;
-                $plano = $planos[$pid];
+                $pl = $planos[$pid];
                 
                 $mp_dados = [
-                    'transaction_amount' => $plano['valor'],
-                    'description' => "Plano SSH — {$plano['dias']} dias",
+                    'transaction_amount' => $pl['valor'],
+                    'description' => "Plano SSH — {$pl['dias']} dias",
                     'payment_method_id' => 'pix',
-                    'payer' => ['email' => 'cliente@exemplo.com']
+                    'payer' => ['email' => 'cliente@teste.com']
                 ];
                 $ch = curl_init("$api_mp?access_token=$mp_token");
                 curl_setopt($ch, CURLOPT_POST, 1);
@@ -96,130 +93,88 @@ while (true) {
                 curl_close($ch);
                 
                 if (isset($mp_resp['point_of_interaction']['transaction_data']['qr_code'])) {
-                    $pix_copia = $mp_resp['point_of_interaction']['transaction_data']['qr_code'];
-                    $pagamentos[$uid] = ['plano' => $pid, 'id' => $mp_resp['id']];
-                    
+                    $pix = $mp_resp['point_of_interaction']['transaction_data']['qr_code'];
                     enviar([
                         'chat_id' => $cid,
-                        'text' => "💳 <b>PAGAMENTO VIA PIX</b>\n\n⏳ Plano: {$plano['nome']}\n💰 Valor: R$ ".number_format($plano['valor'],2,',','')."\n\n📋 Copie e cole no app do banco:\n<pre>$pix_copia</pre>\n\n✅ Após confirmação, envio os dados de acesso!\n⌛ Pode demorar até 8h.",
+                        'text' => "💳 PIX — {$pl['nome']}\nValor: R$ ".number_format($pl['valor'],2,',','')."\n\nCopia e cola:\n<pre>$pix</pre>\nApós pagar envio os dados!",
                         'parse_mode' => 'html'
                     ]);
                 } else {
-                    enviar(['chat_id' => $cid, 'text' => "❌ Erro ao gerar PIX."]);
+                    enviar(['chat_id'=>$cid, 'text'=>'❌ Erro ao gerar PIX']);
                 }
                 continue;
             }
             
-            if (strpos($dados_cb, 'op_') === 0) {
-                $op = substr($dados_cb, 3);
+            if (strpos($data, 'op_')===0) {
+                $op = substr($data,3);
                 if (!isset($operadoras[$op])) continue;
-                $sessao[$cid]['operadora'] = $op;
-                $botoes_valores = [];
+                $sessao[$cid]['op'] = $op;
+                $botoes = [];
                 foreach ($operadoras[$op]['valores'] as $v) {
-                    $botoes_valores[] = [['text' => "R$ $v,00", 'callback_data' => "val_${op}_$v"]];
+                    $botoes[] = [['text'=>"R$ $v,00", 'callback_data'=>"val_{$op}_$v"]];
                 }
-                enviar([
-                    'chat_id' => $cid,
-                    'text' => "💰 Valores para {$operadoras[$op]['nome']}:",
-                    'reply_markup' => json_encode(['inline_keyboard' => $botoes_valores])
-                ]);
+                enviar(['chat_id'=>$cid, 'text'=>'💰 Valores:', 'reply_markup'=>json_encode(['inline_keyboard'=>$botoes])]);
                 continue;
             }
             
-            if (strpos($dados_cb, 'val_') === 0) {
-                list(,, $op, $valor) = explode('_', $dados_cb);
-                $sessao[$cid]['valor'] = $valor;
-                $sessao[$cid]['operadora'] = $op;
-                enviar(['chat_id' => $cid, 'text' => "📱 Digite o número com DDD:\nExemplo: 11999998888"]);
-                $sessao[$cid]['etapa'] = 'numero_recarga';
+            if (strpos($data, 'val_')===0) {
+                list(,,$op,$v) = explode('_',$data);
+                $sessao[$cid]['op']=$op;
+                $sessao[$cid]['val']=$v;
+                $sessao[$cid]['etapa']='numero';
+                enviar(['chat_id'=>$cid, 'text'=>'📱 Digite o número com DDD:']);
                 continue;
             }
             continue;
         }
         
-        if (!isset($atualizacao['message'])) continue;
-        $msg = $atualizacao['message'];
+        if (!isset($at['message'])) continue;
+        $msg = $at['message'];
         $cid = $msg['chat']['id'];
         $uid = $msg['from']['id'];
-        $texto = trim($msg['text'] ?? '');
+        $txt = trim($msg['text'] ?? '');
         
-        if (isset($sessao[$cid]['etapa']) && $sessao[$cid]['etapa'] === 'numero_recarga') {
-            $numero = preg_replace('/\D/', '', $texto);
-            if (strlen($numero) < 10 || strlen($numero) > 11) {
-                enviar(['chat_id' => $cid, 'text' => "❌ Número inválido! Com DDD."]);
+        if (isset($sessao[$cid]['etapa']) && $sessao[$cid]['etapa']==='numero') {
+            $num = preg_replace('/\D/','',$txt);
+            if (strlen($num)<10 || strlen($num)>11) {
+                enviar(['chat_id'=>$cid, 'text'=>'❌ Número inválido!']);
                 continue;
             }
-            $op = $sessao[$cid]['operadora'];
-            $valor = $sessao[$cid]['valor'];
-            
-            enviar([
-                'chat_id' => $admin_id,
-                'text' => "🔔 NOVO PEDIDO\n👤 Usuário: $cid\n📱 $numero\n📶 {$operadoras[$op]['nome']}\n💰 R$ $valor,00"
-            ]);
-            
-            enviar([
-                'chat_id' => $cid,
-                'text' => "✅ Pedido recebido!\n📱 $numero\n📶 {$operadoras[$op]['nome']}\n💰 R$ $valor,00\n\n⌛ Pode demorar até 8h.",
-                'parse_mode' => 'html'
-            ]);
+            $op = $sessao[$cid]['op'];
+            $v = $sessao[$cid]['val'];
+            enviar(['chat_id'=>$admin_id, 'text'=>"🔔 PEDIDO RECARGA\nUsuário: $cid\nNúmero: $num\nOperadora: {$operadoras[$op]['nome']}\nValor: R$ $v,00"]);
+            enviar(['chat_id'=>$cid, 'text'=>"✅ Pedido recebido!\nNúmero: $num\nOperadora: {$operadoras[$op]['nome']}\nValor: R$ $v,00"]);
             unset($sessao[$cid]);
             continue;
         }
         
-        if ($texto === '/start' || $texto === 'Voltar') {
-            enviar([
-                'chat_id' => $cid,
-                'text' => "👋 Bem-vindo! Escolha:",
-                'reply_markup' => json_encode(teclado([
-                    ['Comprar SSH', 'Teste Grátis'],
-                    ['Recarga de Celular', 'Ajuda']
-                ]))
-            ]);
+        if ($txt==='/start' || $txt==='Voltar') {
+            enviar(['chat_id'=>$cid, 'text'=>'👋 Escolha:', 'reply_markup'=>json_encode(teclado([
+                ['Comprar SSH','Teste Grátis'],
+                ['Recarga de Celular','Ajuda']
+            ]))]);
         }
-        elseif ($texto === 'Comprar SSH') {
-            $botoes = [];
-            foreach ($planos as $pid => $pl) {
-                $botoes[] = [['text' => $pl['nome'], 'callback_data' => "plano_$pid"]];
-            }
-            enviar([
-                'chat_id' => $cid,
-                'text' => "🛒 Escolha seu plano:",
-                'reply_markup' => json_encode(['inline_keyboard' => $botoes])
-            ]);
+        elseif ($txt==='Comprar SSH') {
+            $botoes=[];
+            foreach ($planos as $pid=>$pl) $botoes[]=[['text'=>$pl['nome'],'callback_data'=>"plano_$pid"]];
+            enviar(['chat_id'=>$cid, 'text'=>'🛒 Escolha o plano:', 'reply_markup'=>json_encode(['inline_keyboard'=>$botoes])]);
         }
-        elseif ($texto === 'Teste Grátis') {
+        elseif ($txt==='Teste Grátis') {
             if (podeTestar($uid)) {
-                $login = 'teste_'.substr(md5($uid.time()), 0, 6);
-                enviar([
-                    'chat_id' => $cid,
-                    'text' => "✅ Teste liberado!\n\n🔐 Login: $login\n🔑 Senha: 12345678\n⏳ Válido 24h\n\n⚠️ 1 teste por dia."
-                ]);
-                enviar(['chat_id' => $admin_id, 'text' => "🎁 Novo teste — Usuário: $uid"]);
+                $login='teste_'.substr(md5($uid.time()),0,6);
+                enviar(['chat_id'=>$cid, 'text'=>"✅ Teste liberado!\nLogin: $login\nSenha: 12345678\nVálido 24h"]);
+                enviar(['chat_id'=>$admin_id, 'text'=>"🎁 Teste de $uid"]);
             } else {
-                enviar([
-                    'chat_id' => $cid,
-                    'text' => "⏰ Já usou o teste hoje!\nVolte amanhã ou escolha um plano:",
-                    'reply_markup' => json_encode(teclado([['Comprar SSH'], ['Voltar']]))
-                ]);
+                enviar(['chat_id'=>$cid, 'text'=>'⏰ Já usou o teste hoje!', 'reply_markup'=>json_encode(teclado([['Comprar SSH'],['Voltar']]))]);
             }
         }
-        elseif ($texto === 'Recarga de Celular') {
-            $botoes_op = [];
-            foreach ($operadoras as $chave => $op) {
-                $botoes_op[] = [['text' => $op['nome'], 'callback_data' => "op_$chave"]];
-            }
-            enviar([
-                'chat_id' => $cid,
-                'text' => "📱 Escolha a operadora:",
-                'reply_markup' => json_encode(['inline_keyboard' => $botoes_op])
-            ]);
+        elseif ($txt==='Recarga de Celular') {
+            $botoes=[];
+            foreach ($operadoras as $k=>$op) $botoes[]=[['text'=>$op['nome'],'callback_data'=>"op_$k"]];
+            enviar(['chat_id'=>$cid, 'text'=>'📱 Escolha a operadora:', 'reply_markup'=>json_encode(['inline_keyboard'=>$botoes])]);
         }
-        elseif ($texto === 'Ajuda') {
-            enviar([
-                'chat_id' => $cid,
-                'text' => "ℹ️ <b>AJUDA</b>\n\n🛒 Comprar SSH → Escolha → Pague → Receba\n🎁 Teste → 1 por dia\n📱 Recarga → Preencha → Eu faço\n\nDúvidas? Fale com o admin.",
-                'parse_mode' => 'html'
-            ]);
+        elseif ($txt==='Ajuda') {
+            enviar(['chat_id'=>$cid, 'text'=>'ℹ️ Comprar → Pagar → Receber\nTeste → 1/dia\nRecarga → Preencher dados', 'parse_mode'=>'html']);
         }
     }
     sleep(1);
