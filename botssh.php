@@ -1,7 +1,3 @@
-pkill -9 -f botssh 2>/dev/null
-cd /root/bot
-
-cat > botssh.php << 'FIMDOARQUIVO'
 <?php
 error_reporting(0);
 ini_set('display_errors', 0);
@@ -20,7 +16,7 @@ $offset = 0;
 $sessao = [];
 $pagamentos_pendentes = [];
 $testes_feitos = [];
-$ultima_msg_acumulada = []; // Só apaga as mensagens que ficam em cima
+$ultima_msg_acumulada = [];
 
 // Planos SSH
 $planos = [
@@ -113,10 +109,9 @@ function gerarPix($valor, $desc, $mp_token) {
     return ['ok' => false];
 }
 
-echo "✅ BOT INICIADO — Funcionando!\n";
+echo "✅ BOT INICIADO!\n";
 
 while (true) {
-    // Verifica pagamentos
     foreach ($pagamentos_pendentes as $uid => $pg) {
         if (time() - $pg['tempo'] > 900) {
             unset($pagamentos_pendentes[$uid]);
@@ -165,7 +160,6 @@ while (true) {
     foreach ($dados['result'] as $at) {
         $offset = $at['update_id'] + 1;
         
-        // BOTÕES (callback) — LIMPA SÓ O QUE FICA EM CIMA
         if (isset($at['callback_query'])) {
             $cb = $at['callback_query'];
             $cid = $cb['message']['chat']['id'];
@@ -173,9 +167,8 @@ while (true) {
             $data = $cb['data'];
             file_get_contents($api."answerCallbackQuery?id=".$cb['id']);
             
-            limparAcumulada($cid); // APAGA SÓ A MENSAGEM ANTERIOR EM CIMA
+            limparAcumulada($cid);
             
-            // 1. Escolhe plano SSH
             if (strpos($data, 'plano_') === 0) {
                 $pid = (int)substr($data, 6);
                 if (!isset($planos[$pid])) continue;
@@ -200,7 +193,6 @@ while (true) {
                 continue;
             }
             
-            // 2. Escolhe OPERADORA
             if (strpos($data, 'op_') === 0) {
                 $op_chave = substr($data, 3);
                 if (!isset($operadoras[$op_chave])) continue;
@@ -219,7 +211,6 @@ while (true) {
                 continue;
             }
             
-            // 3. Escolhe VALOR → pede número
             if (strpos($data, 'val_') === 0) {
                 $partes = explode('_', $data);
                 if (count($partes) !== 3) continue;
@@ -239,14 +230,12 @@ while (true) {
             continue;
         }
         
-        // MENSAGENS DE TEXTO
         if (!isset($at['message'])) continue;
         $msg = $at['message'];
         $cid = $msg['chat']['id'];
         $uid = $msg['from']['id'];
         $txt = trim($msg['text'] ?? '');
         
-        // 4. RECEBE NÚMERO → GERA PIX
         if (isset($sessao[$cid]['etapa']) && $sessao[$cid]['etapa'] === 'digitar_numero') {
             limparAcumulada($cid);
             
@@ -287,7 +276,6 @@ while (true) {
             continue;
         }
         
-        // === MENU PRINCIPAL — MANTÉM TUDO IGUAL, MENU DE BAIXO CONTINUA ===
         if ($txt === '/start' || $txt === 'Voltar') {
             limparAcumulada($cid);
             enviar(['chat_id' => $cid, 'text' => '👋 Bem-vindo! Escolha uma opção:', 'reply_markup' => json_encode(teclado([
@@ -327,6 +315,3 @@ while (true) {
     }
     usleep(500000);
 }
-FIMDOARQUIVO
-
-php -l botssh.php && echo "✅ ATUALIZADO! Rodando..." && php botssh.php
