@@ -4,7 +4,7 @@ ini_set('display_errors', 0);
 set_time_limit(0);
 
 // ==============================================
-// SEUS DADOS — CONFERE TUDO AQUI!
+// SEUS DADOS — TOKEN ATUALIZADO ✅
 // ==============================================
 $token = '8591852336:AAHHK2tuPC0tjJK9G8gcjBk8x2FxylSVQu8';
 $admin_id = 7761133138;
@@ -35,18 +35,16 @@ $recargas = [
 ];
 
 // ==============================================
-// FUNÇÃO PRINCIPAL — CRIA CONTA REAL
+// CRIA CONTA REAL — chama gerarusuario.sh
 // ==============================================
 function criarContaReal($dias){
     $usuario = substr(str_shuffle('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 8);
     $senha = substr(str_shuffle('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&'), 0, 10);
     
-    // ✅ Chama o script do painel (igual ao original que funciona!)
     if(file_exists('gerarusuario.sh')){
         @chmod('gerarusuario.sh', 0755);
         exec("./gerarusuario.sh $usuario $senha $dias 1");
     } else {
-        // Fallback: cria direto no sistema
         exec("userdel -r $usuario 2>/dev/null");
         exec("useradd -M -s /bin/false $usuario");
         exec("echo '$usuario:$senha' | chpasswd");
@@ -133,10 +131,9 @@ function editar($d){
     curl_exec($ch); curl_close($ch);
 }
 
-echo "✅ BOT INICIADO — CONTA REAL + PIX!\n";
+echo "✅ BOT INICIADO — TOKEN NOVO!\n";
 
 while(true){
-    // Verifica pagamentos
     foreach($pagamentos as $id_pag => $pedido){
         if(verificarPagamento($id_pag)){
             $cid = $pedido['cid'];
@@ -156,7 +153,6 @@ while(true){
         }
     }
 
-    // Recebe mensagens
     $ch = curl_init($api."getUpdates?offset=$offset&timeout=5");
     curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>1, CURLOPT_SSL_VERIFYPEER=>0, CURLOPT_TIMEOUT=>10]);
     $resp = curl_exec($ch); curl_close($ch);
@@ -182,7 +178,6 @@ while(true){
         }
         if(!$cid) continue;
 
-        // Menu principal
         if($txt === '/start' || $cb === 'voltar'){
             $kb = ['inline_keyboard' => [
                 [['text'=>'🎁 TESTE GRÁTIS','callback_data'=>'teste']],
@@ -194,7 +189,6 @@ while(true){
             continue;
         }
 
-        // Teste grátis
         if($cb === 'teste'){
             if(podeTestar($cid)){
                 $conta = criarContaReal(1);
@@ -206,7 +200,6 @@ while(true){
             continue;
         }
 
-        // Escolher plano SSH
         if($cb === 'comprar'){
             $kb = ['inline_keyboard' => []];
             foreach($planos as $id=>$p) $kb['inline_keyboard'][] = [['text'=>$p['nome'], 'callback_data'=>"plano_$id"]];
@@ -215,7 +208,6 @@ while(true){
             continue;
         }
 
-        // Gerar PIX do plano
         if(strpos($cb, 'plano_') === 0){
             $id = (int)substr($cb, 6);
             if(!isset($planos[$id])) continue;
@@ -230,7 +222,6 @@ while(true){
             continue;
         }
 
-        // Recarga — lista operadoras
         if($cb === 'recarga_lista'){
             $kb = ['inline_keyboard' => []];
             foreach($recargas as $chave=>$op) $kb['inline_keyboard'][] = [['text'=>$op['nome'],'callback_data'=>"op_$chave"]];
@@ -239,7 +230,6 @@ while(true){
             continue;
         }
 
-        // Escolheu operadora → valores
         if(strpos($cb, 'op_') === 0){
             $op = substr($cb, 3);
             if(!isset($recargas[$op])) continue;
@@ -251,7 +241,6 @@ while(true){
             continue;
         }
 
-        // Escolheu valor → pede número
         if(strpos($cb, 'val_') === 0){
             $partes = explode('_', $cb);
             if(count($partes)!==3) continue;
@@ -264,7 +253,6 @@ while(true){
             continue;
         }
 
-        // Recebeu número → gera PIX
         if(($sessao[$cid]['etapa']??'') === 'pedir_numero' && $txt){
             $num = preg_replace('/\D/', '', $txt);
             if(strlen($num)<10 || strlen($num)>11){
