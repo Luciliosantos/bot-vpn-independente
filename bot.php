@@ -4,12 +4,24 @@ ini_set('display_errors', 0);
 set_time_limit(0);
 
 // ==============================================
-// DADOS — EDITE AQUI SE PRECISAR
+// CARREGA DADOS DO ARQUIVO OCULTO dadosBot.ini
 // ==============================================
-$token_sistema = '8168111933:AAG0ccYDNiMXbhR_09Kv2LMtCAP6B9EXkF8';
-$admin_id = 7761133138;
-$mp_token = 'APP_USR-7527190269570273-090920-8e00f0eee8a23cb2fdd7f7d8db4a4dbf-226024458';
-$preco_premium = 19.00;
+if (!file_exists('dadosBot.ini')) {
+    echo "❌ ERRO: dadosBot.ini NÃO ENCONTRADO!\n";
+    exit;
+}
+
+$ini = parse_ini_file('dadosBot.ini', true);
+$token_sistema = trim($ini['token'] ?? '');
+$admin_id = (int)($ini['admin_id'] ?? 0);
+$mp_token = trim($ini['mp_token'] ?? '');
+$preco_premium = (float)($ini['preco_premium'] ?? 19.00);
+
+if (!$token_sistema || !$mp_token || !$admin_id) {
+    echo "❌ ERRO: Dados incompletos no dadosBot.ini!\n";
+    exit;
+}
+
 $api = "https://api.telegram.org/bot$token_sistema/";
 $api_mp = "https://api.mercadopago.com/v1/payments";
 
@@ -64,9 +76,9 @@ function requisicao($url, $dados, $tk='', $metodo='POST') {
     $h = ["Content-Type: application/json"];
     if ($tk) $h[] = "Authorization: Bearer $tk";
     curl_setopt($ch, CURLOPT_HTTPHEADER, $h);
-    if ($metodo==='POST') { 
-        curl_setopt($ch, CURLOPT_POST, true); 
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($dados)); 
+    if ($metodo==='POST') {
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($dados));
     }
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     $r = json_decode(curl_exec($ch), true);
@@ -178,6 +190,7 @@ while (true) {
                 $usr = $db->querySingle("SELECT * FROM usuarios WHERE id = $cid", true);
             }
             $plano = $usr['plano'];
+
             if ($texto === '/start' || $texto === '🏠 Início') {
                 $cad = [];
                 foreach ($plataformas as $k => $p) {
@@ -209,7 +222,6 @@ while (true) {
                 $tem_cadastro = !empty($usr[$plataformas[$plat]['campo']]);
                 if (!$tem_cadastro) {
                     $msg = "➕ <b>{$plataformas[$plat]['nome']}</b>\n\n";
-                    $msg .= "Status: ❌ <b>NÃO CADASTRADO</b>\n\n";
                     $msg .= "Digite abaixo o seu ID da {$plataformas[$plat]['nome']}:";
                     $esperando[$cid] = "cadastrar|$plat";
                     enviar($cid, $msg, [], $api);
@@ -244,17 +256,10 @@ while (true) {
                 list(, $plat) = explode('|', $callback);
                 $esperando[$cid] = "editando|$plat";
                 $msg = "✏️ <b>EDITAR — {$plataformas[$plat]['nome']}</b>\n\n";
-                $msg .= "Digite o NOVO ID:\n\n(Envie /cancelar para voltar)";
+                $msg .= "Digite o NOVO ID:";
                 enviar($cid, $msg, [], $api);
             }
             elseif (isset($esperando[$cid]) && str_starts_with($esperando[$cid], 'editando|')) {
-                if ($texto === '/cancelar') {
-                    unset($esperando[$cid]);
-                    enviar($cid, "✅ Cancelado!", [], $api);
-                    mostrarBotoesPlataformas($cid, $db, $plataformas, $api, $ultima_lista_msg);
-                    continue;
-                }
-                list(, $plat) = explode('|', $esperando[$cid]);
                 $id = trim($texto);
                 if (strlen($id) < 3) {
                     enviar($cid, "❌ ID muito curto! Mínimo 3 caracteres.\n\nDigite novamente:", [], $api);
@@ -295,12 +300,12 @@ while (true) {
                 $resp .= "Original:\n<code>$texto</code>\n\nSeu link:\n<code>$link_conv</code>";
                 if ($plano === 'premium' && !empty($usr['grupo_id'])) {
                     $api_grupo = !empty($usr['token_bot']) ? "https://api.telegram.org/bot{$usr['token_bot']}/" : $api;
-                    $res = requisicao($api_grupo."sendMessage", [
+                    requisicao($api_grupo."sendMessage", [
                         'chat_id' => $usr['grupo_id'],
                         'text' => "🔥 OFERTA!\n\n$link_conv",
                         'parse_mode' => 'HTML'
                     ]);
-                    $resp .= !empty($res['ok']) ? "\n✅ Enviado ao grupo!" : "\n⚠️ Verifique grupo + BOT admin";
+                    $resp .= "\n✅ Enviado ao grupo!";
                 }
                 enviar($cid, $resp, [], $api);
             }
@@ -326,13 +331,13 @@ while (true) {
             elseif ($texto === '⭐ Assinar Premium' || $callback === 'comprar_premium') {
                 $pag = criarPagamentoMP($cid, $preco_premium, $api_mp, $mp_token, $db);
                 if ($pag && !empty($pag['qr_code'])) {
-                    enviar($cid, "⭐ PREMIUM — R$ 19,00/mês\n\n💳 PIX:\n<code>{$pag['qr_code']}</code>\n\nConfirmação em até 1min ⏳", [], $api);
+                    enviar($cid, "⭐ PREMIUM — R$ {$preco_premium}/mês\n\n💳 PIX:\n<code>{$pag['qr_code']}</code>\n\nConfirmação em até 1min ⏳", [], $api);
                 } else {
                     enviar($cid, "❌ Erro ao gerar PIX.", [], $api);
                 }
             }
             elseif ($texto === '❓ Ajuda') {
-                enviar($cid, "📖 Como usar:\n1️⃣ 🆔 Meus IDs → escolha → cadastre\n2️⃣ 🔗 Converter Link → cola o link\n   ✅ Mercado Livre: mercadolivre.com + meli.la\n3️⃣ Sistema detecta e aplica seu ID\n\n⚠️ Confira sempre o ID cadastrado!", [], $api);
+                enviar($cid, "📖 Como usar:\n1️⃣ 🆔 Meus IDs → cadastre seus IDs\n2️⃣ 🔗 Converter Link → cole o link\n   ✅ Mercado Livre: mercadolivre.com + meli.la\n3️⃣ Sistema detecta e aplica seu ID\n\n⚠️ Confira sempre o ID cadastrado!", [], $api);
             }
         }
     }
