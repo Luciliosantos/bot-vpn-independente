@@ -71,32 +71,50 @@ apt update -y && apt install php-cli php-sqlite3 php-curl wget screen -y
 
 mkdir -p /root/bot-afiliados && cd /root/bot-afiliados
 
-# BAIXA DO SEU GITHUB
+# Baixa o código limpo do GitHub
 wget -qO bot.php https://raw.githubusercontent.com/Luciliosantos/bot-vpn-independente/main/bot.php
 
-# VERIFICA SE ESTÁ CERTO
-php -l bot.php && echo "✅ CÓDIGO OK!" || { echo "❌ ERRO NO CÓDIGO!"; exit 1; }
+# Cria o arquivo SECRETO com seus dados (SÓ NA VPS!)
+cat > dadosBot.ini << 'EOF'
+token=COLOQUE_SEU_TOKEN_DO_TELEGRAM_AQUI
+admin_id=7761133138
+mp_token=COLOQUE_SEU_TOKEN_DO_MERCADO_PAGO_AQUI
+preco_premium=19.00
+EOF
 
-# LIMPA VERSÃO ANTIGA
+# Verifica
+php -l bot.php && echo "✅ Código OK!"
+echo "📋 Dados carregados:"
+cat dadosBot.ini
+
+# Limpa e inicia
 pkill -9 -f "php bot.php" 2>/dev/null
 rm -f dados.db 2>/dev/null
-
-# INICIA O BOT RODANDO SEMPRE
 screen -dmS bot bash -c 'while true; do php bot.php; sleep 3; done'
 
 echo ""
 echo "✅ BOT INSTALADO E RODANDO! 🟢"
-echo "======================================"
 echo "👉 Ver rodando: screen -r bot"
 echo "👉 Sair sem parar: Ctrl + A → depois D"
-echo "👉 Parar: pkill -9 -f bot.php"
-echo "======================================"
 
 
-#🔄 COMANDO PARA ATUALIZAR DEPOIS
+
+#🔄 PARTE 3 — ATUALIZAR O CÓDIGO (quando mudar no GitHub)
 
 cd /root/bot-afiliados && pkill -9 -f bot.php &&
 wget -qO bot.php https://raw.githubusercontent.com/Luciliosantos/bot-vpn-independente/main/bot.php &&
 php -l bot.php &&
 screen -dmS bot bash -c 'while true; do php bot.php; sleep 3; done' &&
-echo "✅ ATUALIZADO COM SUCESSO!"
+echo "✅ CÓDIGO ATUALIZADO! Dados protegidos 🔒"
+
+
+#🔑 PARTE 4 — ATUALIZAR SOMENTE OS DADOS (token/preço)
+
+cd /root/bot-afiliados
+nano dadosBot.ini
+
+Altera →  Ctrl+O  →  Enter  →  Ctrl+X  → reinicia:
+
+pkill -9 -f bot.php &&
+screen -dmS bot bash -c 'while true; do php bot.php; sleep 3; done' &&
+echo "✅ DADOS ATUALIZADOS! 🔒"
